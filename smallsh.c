@@ -18,6 +18,8 @@ void command_prompt();
 char *get_line();
 void expansion(char *source_string, char *find, char *exchange_with);
 void clean_up();
+//int execute_commands(char *first_command, char **arr_options );
+int execute_commands();
 //-------------------------------
 
 struct Comms
@@ -64,11 +66,60 @@ void clean_up()
     memset(user_commands.less, '\0', 1000);
     memset(user_commands.greater, '\0', 1000);
     memset(user_commands.amper, '\0', 3);
+
     for (i = 0; i < sizeof (user_commands.options_list)/sizeof (user_commands.options_list[0]); i++)
     {
         user_commands.options_list[i] = NULL;
         free(user_commands.options_list[i]);
     }
+//    i = 0;
+//    while(1)
+//    {
+//        if (user_commands.options_list[i] == NULL)
+//        {
+//            break;
+//        }
+//        if(user_commands.options_list[i] != NULL){
+//            free(user_commands.options_list[i]);
+//            user_commands.options_list[i] = NULL;
+//
+//        }
+//        i++;
+//    }
+}
+
+//int execute_commands(char *first_command, char **arr_options)
+int execute_commands()
+{
+    char *args[512] = {NULL};
+    int num_elements;
+    int index_args;
+    int index_arr_options;
+    int i;
+    printf("HOLLLLLLLLLOOOOWWW\n");
+    index_arr_options = 0;
+    num_elements = 0;
+    index_args = 1;
+//    args[0] = first_command;
+    args[0] = user_commands.command;
+    while(1)
+    {
+//        if (arr_options[index_arr_options] == NULL)
+        if(user_commands.options_list[index_arr_options] == NULL)
+        {
+            break;
+        }
+//        args[index_args] = arr_options[index_arr_options];
+        args[index_args] = user_commands.options_list[index_arr_options];
+        index_arr_options++;
+        index_args++;
+    }
+
+    execvp(user_commands.command, args);
+    perror(user_commands.command);
+    clean_up();
+    return 0;
+//    exit(EXIT_FAILURE);
 }
 
 void command_prompt()
@@ -186,7 +237,7 @@ void command_prompt()
             strcpy(user_commands.options_list[counter], token);
             counter++;
         } while(1);
-        counter = 0; //reset counter to first argument position 0
+        counter = 0; //reset counter to first argument position
         //checking if command is filled out
         printf("commands--> %s\n", user_commands.command);
         for (i = 0; i < 4; i++)
@@ -202,18 +253,24 @@ void command_prompt()
                 //---moves up to declarations; char buff[FILENAME_MAX];
 
                     printf("%s\n", buff);
+//                    system("ls -l");
 
             }
             else if (strcmp(user_commands.command, "cd") == 0 && user_commands.options_list[0] == NULL)
             {
 
-                printf("%s\n", buff);
-                system("ls -l");
-
-                printf("getenv--> %s\n", getenv("HOME"));
-                chdir(getenv("HOME"));
+//                printf("%s\n", buff);
 //                system("ls -l");
 
+//                printf("getenv--> %s\n", getenv("HOME"));
+                chdir(getenv("HOME"));
+                if (chdir(getenv("HOME")) == 0)
+                {
+                    if (getcwd(buff, sizeof buff) == NULL)
+                    {
+                        perror("cwd error\n");
+                    }
+                }
 
             }
             else if (strcmp(user_commands.command, "cd") == 0)
@@ -223,15 +280,33 @@ void command_prompt()
                 if (change_result == 0)
                 {
                     printf("dir changed\n");
+                    if (getcwd(buff, sizeof buff) == NULL)
+                    {
+                        perror("cwd error\n");
+                    }
                 }
                 else
                 {
                     printf("error, bad dir request\n");
                 }
-                system("ls -l");
+//                system("ls -l");
             }
+            else if (strcmp(user_commands.command, "status") == 0)
+            {
+                printf("YOU NEED TO FILL OUT STATUS STUFF");
+            }
+            else if (strcmp(user_commands.command, "exit") == 0)
+            {
+                exit(0);
+            }
+            //----execute block
 
-        }
+//            execute_commands(user_commands.command, user_commands.options_list);
+            execute_commands();
+            //---
+
+        }//RUN EVERYTHING ABOVE THIS
+//        execute_commands(user_commands.command, user_commands.options_list);
 
         //---
         printf("less than --> %s\n", user_commands.less);
@@ -240,11 +315,11 @@ void command_prompt()
         clean_up();
 
         //--------confirm cleanup prints
-//        printf("commands--> %s\n", user_commands.command);
-//        for (i = 0; i < 5; i++)
-//        {
-//            printf("args %d --> %s\n", i, user_commands.options_list[i]);
-//        }
+        printf("commands--> %s\n", user_commands.command);
+        for (i = 0; i < 5; i++)
+        {
+            printf("args %d --> %s\n", i, user_commands.options_list[i]);
+        }
 //        printf("less than --> %s\n", user_commands.less);
 //        printf("greater than --> %s\n", user_commands.greater);
 //        printf("ampered up --> %s\n", user_commands.amper);
