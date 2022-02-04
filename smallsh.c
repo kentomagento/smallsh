@@ -23,7 +23,7 @@ char *get_line();
 void expansion(char *source_string, char *find, char *exchange_with);
 void clean_up();
 //int execute_commands(char *first_command, char **arr_options );
-int execute_commands();
+void execute_commands();
 //-------------------------------
 
 struct Comms
@@ -112,7 +112,7 @@ void clean_up()
  */
 
 //int execute_commands(char *first_command, char **arr_options)
-int execute_commands()
+void execute_commands()
 {
     char *args[512] = {NULL};
     int num_elements;
@@ -139,25 +139,68 @@ int execute_commands()
         index_arr_options++;
         index_args++;
     }
+    //---------handle redirections
+//    if ((strcmp(user_commands.greater, "") != 0))//not empty
+//    {
+//        int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+//        if (targetFD == -1)
+//        {
+//            perror("target open()");
+//            exit(1);
+//        }
+//        dup2(targetFD, 1);
+//        fcntl(targetFD, F_SETFD, FD_CLOEXEC);
+//    }
+    //-----------
 
     first_pid = fork();
     if (first_pid == 0)
     {
+        if ((strcmp(user_commands.greater, "") != 0))//not empty
+        {
+            int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+            if (targetFD == -1)
+            {
+//                perror("target open()");
+                printf("ERROR. cannot open");
+                exit(1);
+            }
+            dup2(targetFD, 1);
+            fcntl(targetFD, F_SETFD, FD_CLOEXEC);
+            fflush(stdout);
+
+        }
+        if ((strcmp(user_commands.less, "") != 0))//not empty
+        {
+            int source_file = open(user_commands.less, O_RDONLY);
+            if (source_file == -1)
+            {
+//                perror("cannot open for input");
+                printf("error cannot open %s for input\n", user_commands.less);
+                exit(1);
+            }
+            dup2(source_file, 0);
+            fcntl(source_file, FD_CLOEXEC);
+        }
         if (execvp(user_commands.command, args) == -1)
         {
 //            perror(user_commands.command);
 //            perror("yes\n");
 //            printf("first\n");
-            printf("%s: No such file or directory\n", user_commands.command);
+            printf("%s: No such file or directory", user_commands.command);
+            fflush(stdin);
         }
+//        fflush(stdout);
+//        fflush(stdin);
         exit(1);
     }
     else if(first_pid < 0)
     {
-          printf("second\n");//DELETE
+//          printf("second\n");//DELETE
           printf("%s: No such file or directory\n", user_commands.command);
 //        perror(user_commands.command);
 //        printf("%s: No such file or directory\n", user_commands.command);
+        exit(1);
     }
     else
     {
@@ -167,7 +210,7 @@ int execute_commands()
         } while (WIFEXITED(state) != 0 && WIFSIGNALED(state) != 0);
     }
 
-    return 0;
+//    return 0;
 //    exit(EXIT_FAILURE);
 }
 
@@ -204,14 +247,14 @@ void command_prompt()
     //-----temp input
 //    string_input = "ls -la";
     //-----
-    //do
-    while(delete_count < delete_temp)
+    do
+//    while(delete_count < delete_temp)
     {
         //-------------
         delete_count++;
         //-------------
-        printf(": "); //the prompt
-//        getchar();
+
+        printf("> "); //the prompt
         getline(&string_input, &string_input_len, stdin);
         string_input[strlen(string_input)-1] = '\0';
 //        printf("%s\n", string_input);
@@ -287,6 +330,7 @@ void command_prompt()
             printf("args %d --> %s\n", i, user_commands.options_list[i]);
         }
         printf("less than --> %s\n", user_commands.less);
+//        if (strcmp(user_commands.less, "") == 0){printf("its empty\n");}
         printf("greater than --> %s\n", user_commands.greater);
         printf("ampered up --> %s\n", user_commands.amper);
         //---------------------------------------
@@ -360,7 +404,7 @@ void command_prompt()
 //            execute_commands(user_commands.command, user_commands.options_list);
             execute_commands();
             clean_up();
-            continue;
+//            continue;
             //---
 
         }//RUN EVERYTHING ABOVE THIS
@@ -385,7 +429,7 @@ void command_prompt()
 
 
         //call fflush at end after each print
-    }//while (delete_count <= delete_temp);
+    }while (delete_count <= delete_temp);
 
 }
 
