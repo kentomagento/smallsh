@@ -11,6 +11,10 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
 
 //---------variables and functions
@@ -32,7 +36,13 @@ struct Comms
 
 } user_commands;
 
-
+/*
+-------citation expansion function
+ date: 01/28/2022
+ copied from /OR/ adapted from /OR/ based on:
+ http://www.youtube.com/watch?v=yoa_mMmvlMc1
+-------
+ */
 void expansion(char *source_string, char *find, char *exchange_with)
 {
     char holder[10240] = {0};
@@ -62,6 +72,8 @@ void expansion(char *source_string, char *find, char *exchange_with)
 void clean_up()
 {
     int i;
+    fflush(stdout);
+    fflush(stdin);
     memset(user_commands.command, '\0', 2048);
     memset(user_commands.less, '\0', 1000);
     memset(user_commands.greater, '\0', 1000);
@@ -87,6 +99,17 @@ void clean_up()
 //        i++;
 //    }
 }
+/*
+------citation for execute_commands
+ date: 02/01/2022
+ copied from /OR/ adapted from /OR/ based on :
+ https://www.geeksforgeeks.org/difference-fork-exec/
+ https://www.geeksforgeeks.org/wait-system-call-c/
+ explorations: executing a new program, processes and I/O
+ https://stackoverflow.com/questions/47441871/why-should-we-check-wifexited-after-wait-in-order-to-kill-child-processes-in-lin
+ https://stackoverflow.com/questions/33508997/waitpid-wnohang-wuntraced-how-do-i-use-these/34845669
+----------
+ */
 
 //int execute_commands(char *first_command, char **arr_options)
 int execute_commands()
@@ -96,11 +119,13 @@ int execute_commands()
     int index_args;
     int index_arr_options;
     int i;
-    printf("HOLLLLLLLLLOOOOWWW\n");
     index_arr_options = 0;
     num_elements = 0;
     index_args = 1;
 //    args[0] = first_command;
+    pid_t first_pid;
+    pid_t second_pid;
+    int state;
     args[0] = user_commands.command;
     while(1)
     {
@@ -115,9 +140,33 @@ int execute_commands()
         index_args++;
     }
 
-    execvp(user_commands.command, args);
-    perror(user_commands.command);
-    clean_up();
+    first_pid = fork();
+    if (first_pid == 0)
+    {
+        if (execvp(user_commands.command, args) == -1)
+        {
+//            perror(user_commands.command);
+//            perror("yes\n");
+//            printf("first\n");
+            printf("%s: No such file or directory\n", user_commands.command);
+        }
+        exit(1);
+    }
+    else if(first_pid < 0)
+    {
+          printf("second\n");//DELETE
+          printf("%s: No such file or directory\n", user_commands.command);
+//        perror(user_commands.command);
+//        printf("%s: No such file or directory\n", user_commands.command);
+    }
+    else
+    {
+        do
+        {
+            second_pid = waitpid(first_pid, &state, WUNTRACED );
+        } while (WIFEXITED(state) != 0 && WIFSIGNALED(state) != 0);
+    }
+
     return 0;
 //    exit(EXIT_FAILURE);
 }
@@ -132,6 +181,7 @@ void command_prompt()
     int compare;
     int counter;
     counter = 0;
+    compare = 0;
     //-----getline
     char *string_input = NULL;
     size_t string_input_len = 0;
@@ -177,24 +227,6 @@ void command_prompt()
 //            printf("string pid worked --> %s\n", string_input);
         }
 
-//        for (i = 0; i < strlen(string_input); i++)
-//        {
-//            printf("%c  \n", string_input[i]);
-//            if (string_input[i] == 35)
-//            {
-//                break;
-//            }
-//            else if (string_input[i] == 60 && string_input[i-1] == 32 && string_input[i+1] == 32)
-//            {
-//                printf("found a LESS than symbole\n");
-//                break;
-//            }
-//            else if (string_input[i] == 62 && string_input[i-1] == 32 && string_input[i+1] == 32)
-//            {
-//                printf("found a GREATER than symbole\n");
-//                break;
-//            }
-//        }//end of for loop through input
         if (string_input[strlen(string_input) -1] == 38 && string_input[strlen(string_input) -2] == 32 )
         {
             printf("found & at the end\n");
@@ -219,14 +251,18 @@ void command_prompt()
                 token = strtok_r(NULL, " ", &save_pointer);
                 strcpy(user_commands.less, token);
 //                token = strtok_r(NULL, " ", &save_pointer);
-                continue;
+//                continue;
+                compare = 1;
+
             }
             else if (*token == 62)
             {
                 printf("great than found\n");
                 token = strtok_r(NULL, " ", &save_pointer);
                 strcpy(user_commands.greater, token);
-                continue;
+//                continue;
+                compare = 1;
+
             }
 //            if (token == 0)
 //            {
@@ -234,16 +270,26 @@ void command_prompt()
 //                continue;
 //            }
             user_commands.options_list[counter] = malloc((strlen(token) +1) * sizeof (char));
-            strcpy(user_commands.options_list[counter], token);
+            if (compare != 0) {
+                user_commands.options_list[counter] = NULL;
+            } else {
+                strcpy(user_commands.options_list[counter], token);
+            }
+//            strcpy(user_commands.options_list[counter], token);
+            compare = 0;
             counter++;
         } while(1);
         counter = 0; //reset counter to first argument position
-        //checking if command is filled out
+        //checking if command is filled out-----------
         printf("commands--> %s\n", user_commands.command);
         for (i = 0; i < 4; i++)
         {
             printf("args %d --> %s\n", i, user_commands.options_list[i]);
         }
+        printf("less than --> %s\n", user_commands.less);
+        printf("greater than --> %s\n", user_commands.greater);
+        printf("ampered up --> %s\n", user_commands.amper);
+        //---------------------------------------
         //---get pwd
         if ((strcmp(user_commands.command, "")) != 0)
         {
@@ -254,6 +300,8 @@ void command_prompt()
 
                     printf("%s\n", buff);
 //                    system("ls -l");
+                    clean_up();
+                    continue;
 
             }
             else if (strcmp(user_commands.command, "cd") == 0 && user_commands.options_list[0] == NULL)
@@ -271,6 +319,8 @@ void command_prompt()
                         perror("cwd error\n");
                     }
                 }
+                clean_up();
+                continue;
 
             }
             else if (strcmp(user_commands.command, "cd") == 0)
@@ -284,16 +334,22 @@ void command_prompt()
                     {
                         perror("cwd error\n");
                     }
+                    clean_up();
+                    continue;
                 }
                 else
                 {
                     printf("error, bad dir request\n");
+                    clean_up();
+                    continue;
                 }
 //                system("ls -l");
             }
             else if (strcmp(user_commands.command, "status") == 0)
             {
                 printf("YOU NEED TO FILL OUT STATUS STUFF");
+                clean_up();
+                continue;
             }
             else if (strcmp(user_commands.command, "exit") == 0)
             {
@@ -303,23 +359,25 @@ void command_prompt()
 
 //            execute_commands(user_commands.command, user_commands.options_list);
             execute_commands();
+            clean_up();
+            continue;
             //---
 
         }//RUN EVERYTHING ABOVE THIS
 //        execute_commands(user_commands.command, user_commands.options_list);
 
         //---
-        printf("less than --> %s\n", user_commands.less);
-        printf("greater than --> %s\n", user_commands.greater);
-        printf("ampered up --> %s\n", user_commands.amper);
-        clean_up();
+//        printf("less than --> %s\n", user_commands.less);
+//        printf("greater than --> %s\n", user_commands.greater);
+//        printf("ampered up --> %s\n", user_commands.amper);
+//        clean_up();
 
         //--------confirm cleanup prints
-        printf("commands--> %s\n", user_commands.command);
-        for (i = 0; i < 5; i++)
-        {
-            printf("args %d --> %s\n", i, user_commands.options_list[i]);
-        }
+//        printf("commands--> %s\n", user_commands.command);
+//        for (i = 0; i < 5; i++)
+//        {
+//            printf("args %d --> %s\n", i, user_commands.options_list[i]);
+//        }
 //        printf("less than --> %s\n", user_commands.less);
 //        printf("greater than --> %s\n", user_commands.greater);
 //        printf("ampered up --> %s\n", user_commands.amper);
