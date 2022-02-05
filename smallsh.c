@@ -23,7 +23,10 @@ char *get_line();
 void expansion(char *source_string, char *find, char *exchange_with);
 void clean_up();
 //int execute_commands(char *first_command, char **arr_options );
-void execute_commands();
+int execute_commands();
+void update_status(char *string);
+void add_pid(int x);
+void clear_pids(); //did not write yet
 //-------------------------------
 
 struct Comms
@@ -33,8 +36,28 @@ struct Comms
     char less[1000];
     char greater[1000];
     char amper[3];
+    char status[1000];
+    int pid_array[200];
 
 } user_commands;
+//UPDATE
+void update_status(char *string)
+{
+    memset(user_commands.status, '\0', strlen(user_commands.status));
+    strcpy(user_commands.status, string);
+}
+void add_pid(int x)
+{
+    int i;
+    for (i = 0; i < sizeof(user_commands.pid_array); i++)
+    {
+        if (user_commands.pid_array[i] == 0)
+        {
+            user_commands.pid_array[i] = x;
+            break;
+        }
+    }
+}
 
 /*
 -------citation expansion function
@@ -79,25 +102,26 @@ void clean_up()
     memset(user_commands.greater, '\0', 1000);
     memset(user_commands.amper, '\0', 3);
 
-    for (i = 0; i < sizeof (user_commands.options_list)/sizeof (user_commands.options_list[0]); i++)
+    // for (i = 0; i < sizeof (user_commands.options_list)/sizeof (user_commands.options_list[0]); i++)
+    // {
+    //     user_commands.options_list[i] = NULL;
+    //     free(user_commands.options_list[i]);
+    // }
+//UPDATE
+    i = 0;
+    while(1)
     {
-        user_commands.options_list[i] = NULL;
-        free(user_commands.options_list[i]);
+        if (user_commands.options_list[i] == NULL)
+        {
+            break;
+        }
+        if(user_commands.options_list[i] != NULL){
+            free(user_commands.options_list[i]);
+            user_commands.options_list[i] = NULL;
+
+        }
+        i++;
     }
-//    i = 0;
-//    while(1)
-//    {
-//        if (user_commands.options_list[i] == NULL)
-//        {
-//            break;
-//        }
-//        if(user_commands.options_list[i] != NULL){
-//            free(user_commands.options_list[i]);
-//            user_commands.options_list[i] = NULL;
-//
-//        }
-//        i++;
-//    }
 }
 /*
 ------citation for execute_commands
@@ -112,7 +136,7 @@ void clean_up()
  */
 
 //int execute_commands(char *first_command, char **arr_options)
-void execute_commands()
+int execute_commands()
 {
     char *args[512] = {NULL};
     int num_elements;
@@ -153,65 +177,123 @@ void execute_commands()
 //    }
     //-----------
 
-    first_pid = fork();
-    if (first_pid == 0)
+    pid_t spawnPid;
+    int childExitStatus;
+
+    spawnPid = fork();
+    switch(spawnPid)
     {
-        if ((strcmp(user_commands.greater, "") != 0))//not empty
+        // if (spawnPid == -1)
+        case -1:
         {
-            int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
-            if (targetFD == -1)
+            perror("fork failed!");
+            break;
+            // exit(1);
+        }
+            // else if (spawnPid == 0)
+        case 0:
+        {
+            printf("child (%d) \n", getpid());
+//        sleep(10);
+            if ((strcmp(user_commands.greater, "") != 0))//not empty
             {
+                int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+                if (targetFD == -1)
+                {
 //                perror("target open()");
-                printf("ERROR. cannot open");
-                exit(1);
+                    printf("ERROR. cannot open");
+                    exit(1);
+                }
+                dup2(targetFD, 1);
+                fcntl(targetFD, F_SETFD, FD_CLOEXEC);
+                fflush(stdout);
+
             }
-            dup2(targetFD, 1);
-            fcntl(targetFD, F_SETFD, FD_CLOEXEC);
+            if ((strcmp(user_commands.less, "") != 0))//not empty
+            {
+                int source_file = open(user_commands.less, O_RDONLY);
+                if (source_file == -1)
+                {
+//                perror("cannot open for input");
+                    printf("error cannot open %s for input\n", user_commands.less);
+                    exit(1);
+                }
+                dup2(source_file, 0);
+                fcntl(source_file, FD_CLOEXEC);
+            }
+            execvp(user_commands.command, args);
+            perror("child: exec failed\n");
+            // exit(2);
+            break;
+            // return 2;
+        }
+            // else
+        default:
+        {
+            printf("childs pid = %d\n", spawnPid);
             fflush(stdout);
 
-        }
-        if ((strcmp(user_commands.less, "") != 0))//not empty
-        {
-            int source_file = open(user_commands.less, O_RDONLY);
-            if (source_file == -1)
+//        spawnPid = waitpid(spawnPid, &childExitStatus, WNOHANG);
+            if (strcmp(user_commands.amper, "") == 0)
             {
-//                perror("cannot open for input");
-                printf("error cannot open %s for input\n", user_commands.less);
-                exit(1);
+                printf("FOREGROUND\n");
+                fflush(stdout);
+
+                spawnPid = (waitpid(spawnPid, &childExitStatus, 0));
+                if (WIFEXITED(childExitStatus))
+                {
+                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
+                    printf("child %d exited normal\n", spawnPid, WEXITSTATUS(childExitStatus));
+                    fflush(stdout);
+                    // break;
+
+                }
+                else
+                {
+                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
+                    printf("child %d ABNORMALLY exited due to signal\n", spawnPid, WTERMSIG(childExitStatus));
+                    fflush(stdout);
+                    // break;
+
+                }
             }
-            dup2(source_file, 0);
-            fcntl(source_file, FD_CLOEXEC);
+            else if (strcmp(user_commands.amper, "") != 0)
+            {
+                printf("BACKGROUND\n");
+                fflush(stdout);
+                sleep(1);
+                spawnPid = (waitpid(spawnPid, &childExitStatus, WNOHANG));
+
+
+                if (WIFEXITED(childExitStatus))
+                {
+                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
+                    printf("child %d exited normal\n", spawnPid, WEXITSTATUS(childExitStatus));
+                    fflush(stdout);
+                    // break;
+
+                }
+                else
+                {
+                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
+                    printf("child %d ABNORMALLY exited due to signal %d\n", spawnPid, WTERMSIG(childExitStatus));
+                    fflush(stdout);
+                    // break;
+
+                }
+                // break;
+                return 0;
+
+                // exit(0);
+            }
+
+            break;
+
         }
-        if (execvp(user_commands.command, args) == -1)
-        {
-//            perror(user_commands.command);
-//            perror("yes\n");
-//            printf("first\n");
-            printf("%s: No such file or directory", user_commands.command);
-            fflush(stdin);
-        }
-//        fflush(stdout);
-//        fflush(stdin);
-        exit(1);
-    }
-    else if(first_pid < 0)
-    {
-//          printf("second\n");//DELETE
-          printf("%s: No such file or directory\n", user_commands.command);
-//        perror(user_commands.command);
-//        printf("%s: No such file or directory\n", user_commands.command);
-        exit(1);
-    }
-    else
-    {
-        do
-        {
-            second_pid = waitpid(first_pid, &state, WUNTRACED );
-        } while (WIFEXITED(state) != 0 && WIFSIGNALED(state) != 0);
     }
 
-//    return 0;
-//    exit(EXIT_FAILURE);
+    return 0;
+
 }
 
 void command_prompt()
@@ -228,11 +310,15 @@ void command_prompt()
     //-----getline
     char *string_input = NULL;
     size_t string_input_len = 0;
+//UPDATE
     //------------fill struct
     memset(user_commands.command, '\0', 2048);
     memset(user_commands.less, '\0', 1000);
     memset(user_commands.greater, '\0', 1000);
     memset(user_commands.amper, '\0', 3);
+    memset(user_commands.pid_array, 0, sizeof(user_commands.pid_array));
+    memset(user_commands.status, '\0', sizeof(user_commands.status));
+    strcpy(user_commands.status, "exit value 0");
     //----get pid change to string
     char string_pid[8] = {'\0'};
     //---directory handling
@@ -242,7 +328,9 @@ void command_prompt()
         perror("cwd error\n");
     }
     //-------
-
+    //-------kill children
+    waitpid(-1, NULL, WNOHANG);
+    //------------------
 
     //-----temp input
 //    string_input = "ls -la";
@@ -258,7 +346,7 @@ void command_prompt()
         getline(&string_input, &string_input_len, stdin);
         string_input[strlen(string_input)-1] = '\0';
 //        printf("%s\n", string_input);
-        if (*string_input == '\0')
+        if (*string_input == '\0' || string_input[0] == 35)
         {continue;}
         if((strstr(string_input, "$$")) != NULL)
         {
@@ -307,6 +395,14 @@ void command_prompt()
                 compare = 1;
 
             }
+            else if (*token == 38)
+            {
+                printf("& FOUND\n");
+//                token = strtok_r(NULL, " ", &save_pointer);
+                token ++;
+                strcpy(user_commands.amper, "yes");
+                compare = 1;
+            }
 //            if (token == 0)
 //            {
 //                //break;
@@ -342,10 +438,10 @@ void command_prompt()
                 //printf("asking for directory\n");
                 //---moves up to declarations; char buff[FILENAME_MAX];
 
-                    printf("%s\n", buff);
+                printf("%s\n", buff);
 //                    system("ls -l");
-                    clean_up();
-                    continue;
+                clean_up();
+                continue;
 
             }
             else if (strcmp(user_commands.command, "cd") == 0 && user_commands.options_list[0] == NULL)
@@ -391,7 +487,8 @@ void command_prompt()
             }
             else if (strcmp(user_commands.command, "status") == 0)
             {
-                printf("YOU NEED TO FILL OUT STATUS STUFF");
+//                printf("YOU NEED TO FILL OUT STATUS STUFF");
+                printf("%s\n", user_commands.status);
                 clean_up();
                 continue;
             }
@@ -404,7 +501,7 @@ void command_prompt()
 //            execute_commands(user_commands.command, user_commands.options_list);
             execute_commands();
             clean_up();
-//            continue;
+            continue;
             //---
 
         }//RUN EVERYTHING ABOVE THIS
@@ -441,3 +538,4 @@ int main(int argc, char **argv)
     return 0;
 }
 
+//
