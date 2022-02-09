@@ -28,8 +28,12 @@ void clean_up();
 int execute_commands();
 void update_status(char *string);
 void add_pid(int x);
-void kill_kids();
+// void kill_kids();
+int kill_kids();
 void enter_foreground(int x);
+void handler_interrup(int z);
+void handler_twp(int w);
+int execute_commands_background();
 //-------------------------------
 
 struct Comms
@@ -42,6 +46,7 @@ struct Comms
     char status[1000];
     int pid_array[200];
     int foreground;
+    int current;
 
 } user_commands;
 
@@ -49,25 +54,30 @@ struct Comms
 void get_pids()
 {
     int i;
-    i = 0;
-    do
+    // i = 0;
+    for(i = 0; i < 4; i ++)
     {
-        if (user_commands.pid_array[i] != 0)
-        {
-            printf("pid #%d --> %d\n", i, user_commands.pid_array[i]);
-        }
-        i++;
-    } while (user_commands.pid_array[i] != 0);
+        printf("pid %d => %d\n", i, user_commands.pid_array[i]);
+    }
+    // do
+    // {
+    //     if (user_commands.pid_array[i] != 0)
+    //     {
+    //         printf("pid #%d --> %d\n", i, user_commands.pid_array[i]);
+    //     }
+    //     i++;
+    // } while (user_commands.pid_array[i] != 0);
 }
 void update_status(char *string)
 {
     memset(user_commands.status, '\0', strlen(user_commands.status));
     strcpy(user_commands.status, string);
 }
+//ADDD PID
 void add_pid(int x)
 {
     int i;
-    for (i = 0; i < sizeof(user_commands.pid_array); i++)
+    for (i = 1; i < sizeof(user_commands.pid_array); i++)
     {
         if (user_commands.pid_array[i] == 0)
         {
@@ -192,6 +202,150 @@ int execute_commands()
 //            exit(1);
 //        }
 //        dup2(targetFD, 1);
+//        fcntl(targetFD, F_SETFD, FD_CLOEXEC);a
+//    }
+    //-----------
+
+    pid_t spawnPid;
+    int childExitStatus;
+    user_commands.pid_array[0] = 1;
+    spawnPid = fork();
+    // int pid = (waitpid(-1, NULL, WNOHANG));
+    // printf("pid result --> %d; the pide is --> %d\n", pid, spawnPid);
+    switch(spawnPid)
+    {
+        // if (spawnPid == -1)
+        case -1:
+        {
+            perror("fork failed!");
+            break;
+            // exit(1);
+        }
+            // else if (spawnPid == 0)
+        case 0:
+        {
+            // printf("child (%d) \n", getpid());
+            // fflush(stdout);
+            // usleep(5);
+            // write(0, "\n", 1);
+//        sleep(10);
+            if ((strcmp(user_commands.greater, "") != 0))//not empty
+            {
+                int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+                if (targetFD == -1)
+                {
+//                perror("target open()");
+                    printf("ERROR. cannot open");
+                    exit(1);
+                }
+                dup2(targetFD, 1);
+                fcntl(targetFD, F_SETFD, FD_CLOEXEC);
+                fflush(stdout);
+
+            }
+
+            if ((strcmp(user_commands.less, "") != 0))//not empty
+            {
+                int source_file = open(user_commands.less, O_RDONLY);
+                if (source_file == -1)
+                {
+//                perror("cannot open for input");
+                    printf("error cannot open %s for input\n", user_commands.less);
+                    exit(1);
+                }
+                dup2(source_file, 0);
+                fcntl(source_file, FD_CLOEXEC);
+            }
+//EXECUTION
+            execvp(user_commands.command, args);
+            // perror("Foreground: exec failed\n");
+            perror(user_commands.command);
+            // exit(2);
+            break;
+            // return 2;
+        }
+            // else
+        default:
+        {
+            // printf("FOREGROUND childs pid = %d\n", spawnPid);
+            // write(0, "\n", 1);
+            //-----adding pids to array
+
+            //--------------
+            fflush(stdout);
+
+//        spawnPid = waitpid(spawnPid, &childExitStatus, WNOHANG);
+
+            user_commands.current = spawnPid;
+            // printf("FOREGROUND \n");
+            // fflush(stdout);
+
+            spawnPid = (waitpid(spawnPid, &childExitStatus, 0));
+
+            if (WIFEXITED(childExitStatus))
+            {
+                // printf ("current FOREGROUND PID --> %d\n", user_commands.current);
+                // printf("FOREGROUND exit status child--> %d\n", WIFEXITED(childExitStatus));
+                // printf("FOREGROUND child %d exited normal with %d\n", spawnPid, WEXITSTATUS(childExitStatus));
+                fflush(stdout);
+                break;
+
+            }
+            else
+            {
+                // printf("FOREGROUND exit status child--> %d\n", WIFEXITED(childExitStatus));
+                printf("FOREGROUND child %d ABNORMALLY exited due to signal %d\n", spawnPid, WTERMSIG(childExitStatus));
+                fflush(stdout);
+                break;
+
+            }
+            waitpid(spawnPid, NULL, WNOHANG);
+            exit(0);
+
+        }
+    }
+
+    return 0;
+
+}
+
+int execute_commands_background()
+{
+    char *args[512] = {NULL};
+    int num_elements;
+    int index_args;
+    int index_arr_options;
+    int i;
+    index_arr_options = 0;
+    num_elements = 0;
+    index_args = 1;
+//    args[0] = first_command;
+    pid_t first_pid;
+    pid_t second_pid;
+    int state;
+    args[0] = user_commands.command;
+    while(1)
+    {
+//        if (arr_options[index_arr_options] == NULL)
+        if(user_commands.options_list[index_arr_options] == NULL)
+        {
+            break;
+        }
+//        args[index_args] = arr_options[index_arr_options];
+        args[index_args] = user_commands.options_list[index_arr_options];
+        index_arr_options++;
+        index_args++;
+    }
+    //---------handle redirections
+//    if ((strcmp(user_commands.greater, "") != 0))//not empty
+//    {
+//        int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+//        if (targetFD == -1)
+//        {
+//            perror("target open()");
+//            exit(1);
+//        }
+//        dup2(targetFD, 1);
 //        fcntl(targetFD, F_SETFD, FD_CLOEXEC);
 //    }
     //-----------
@@ -214,13 +368,28 @@ int execute_commands()
             // else if (spawnPid == 0)
         case 0:
         {
+            int targetFD = open("/dev/null", O_RDWR);
+            if (targetFD == -1)
+            {
+                printf("could not open\n");
+            }
+            int source_file = open("/dev/null", O_RDWR);
+            if (source_file == -1)
+            {
+                printf("could not open\n");
+            }
+
+            dup2(source_file, 0);
+            dup2(targetFD, 1);
+            // dup2(open("/dev/null/", O_PATH),0);
             printf("child (%d) \n", getpid());
             // usleep(5);
             // write(0, "\n", 1);
 //        sleep(10);
             if ((strcmp(user_commands.greater, "") != 0))//not empty
             {
-                int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+                // int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+                targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
                 if (targetFD == -1)
                 {
 //                perror("target open()");
@@ -232,9 +401,12 @@ int execute_commands()
                 fflush(stdout);
 
             }
+            else
+
             if ((strcmp(user_commands.less, "") != 0))//not empty
             {
-                int source_file = open(user_commands.less, O_RDONLY);
+                // int source_file = open(user_commands.less, O_RDONLY);
+                source_file = open(user_commands.less, O_RDONLY);
                 if (source_file == -1)
                 {
 //                perror("cannot open for input");
@@ -244,7 +416,22 @@ int execute_commands()
                 dup2(source_file, 0);
                 fcntl(source_file, FD_CLOEXEC);
             }
+
 //EXECUTION
+            //  DIR *currDir = opendir("/dev/null");
+            // printf("changing stdout\n");
+            // fflush(stdout);
+            // int dev_null_out = open("/dev/null", O_RDONLY);
+            // // open("/dev/null", O_RDONLY);
+            // dup2(dev_null_out, 0);
+            // fcntl(dev_null_out, F_SETFD, FD_CLOEXEC);
+            //------------------------
+            struct sigaction SIGINT_action = {0}, ignore_action = {0};
+            SIGINT_action.sa_handler = SIG_IGN;
+            ignore_action.sa_handler = SIG_IGN;
+            sigaction(SIGINT, &ignore_action, NULL);
+            sigaction(SIGINT, &SIGINT_action, NULL);
+            //---------------------------
             execvp(user_commands.command, args);
             perror("child: exec failed\n");
             // exit(2);
@@ -260,93 +447,78 @@ int execute_commands()
 
             //--------------
             fflush(stdout);
-
 //        spawnPid = waitpid(spawnPid, &childExitStatus, WNOHANG);
-            if (strcmp(user_commands.amper, "") == 0 || user_commands.foreground == 1)
+
+            user_commands.current = spawnPid;
+            printf("BACKGROUND\n");
+            add_pid(spawnPid);
+            fflush(stdout);
+
+            spawnPid = (waitpid(spawnPid, &childExitStatus, WNOHANG));
+
+            if (WIFEXITED(childExitStatus))
             {
-                printf("FOREGROUND\n");
+                // printf ("current FOREGROUND PID --> %d\n", user_commands.current);
+                printf("BACKGROUND exit status child--> %d\n", WIFEXITED(childExitStatus));
+                printf("BACKGROUND child %d exited normal\n", spawnPid, WEXITSTATUS(childExitStatus));
                 fflush(stdout);
-
-                spawnPid = (waitpid(spawnPid, &childExitStatus, 0));
-                if (WIFEXITED(childExitStatus))
-                {
-                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
-                    printf("child %d exited normal\n", spawnPid, WEXITSTATUS(childExitStatus));
-                    fflush(stdout);
-                    // break;
-
-                }
-                else
-                {
-                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
-                    printf("child %d ABNORMALLY exited due to signal\n", spawnPid, WTERMSIG(childExitStatus));
-                    fflush(stdout);
-                    // break;
-
-                }
-            }
-            else if (strcmp(user_commands.amper, "") != 0 && user_commands.foreground == 0)
-            {
-                add_pid(spawnPid);
-                printf("BACKGROUND\n");
-                fflush(stdout);
-
-                spawnPid = (waitpid(spawnPid, &childExitStatus, WNOHANG));
-
-
-                if (WIFEXITED(childExitStatus))
-                {
-                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
-                    printf("child %d exited normal\n", spawnPid, WEXITSTATUS(childExitStatus));
-                    fflush(stdout);
-                    // break;
-
-                }
-                else
-                {
-                    printf("exit status child--> %d\n", WIFEXITED(childExitStatus));
-                    printf("child %d ABNORMALLY exited due to signal %d\n", spawnPid, WTERMSIG(childExitStatus));
-                    fflush(stdout);
-                    // break;
-
-                }
                 // break;
-                return 0;
 
-                // exit(0);
             }
+            else
+            {
+                printf("BACKGROUND exit status child--> %d\n", WIFEXITED(childExitStatus));
+                printf("BACKGROUND child %d ABNORMALLY exited due to signal %d\n", spawnPid, WTERMSIG(childExitStatus));
+                fflush(stdout);
+                // break;
 
-            break;
-
+            }
+            // exit(0);
         }
     }
 
     return 0;
 
 }
+
+
 //BOOKMARK
-void kill_kids()
+// void kill_kids()
+int kill_kids()
 {
     int i;
     //  i = 0;
     int result;
     int run;
     int status;
-    char stat[50];
+    char stat[1000] = {0};
     //  pid_t chek_pid = wait(&status);
-    for (i = 0; i < 512; i++)
+    // printf("%d\n", user_commands.current);
+    get_pids();
+    if (user_commands.pid_array[0] == 1)
+    {
+        user_commands.pid_array[0] = 0;
+
+        return 0;
+    }
+
+    for (i = 1; i < 512; i++)
     {
         if (user_commands.pid_array[i] == 0 || (user_commands.pid_array[i] == 1))
         {
             continue;
+            // break;
         }
 
         result = waitpid(user_commands.pid_array[i], &status, WNOHANG); //checks if any completed and return 0 if they're still running
         if (result != 0)
         {
+            if(user_commands.current == user_commands.pid_array[i]){
+                continue;
+            }
             if (WIFEXITED(status) != 0)
             {
-
+                printf("extra\n");
                 printf("back ground pid %d is done: exit value %d\n", user_commands.pid_array[i], WIFSIGNALED(status));
 
                 sprintf(stat, "exit value %d", WIFSIGNALED(status));
@@ -356,7 +528,8 @@ void kill_kids()
             else
             {
 
-                printf("pid --> %d, ABNORMALLY EXITED --> %d\n", user_commands.pid_array[i], WTERMSIG(status));
+                // printf("pid --> %d, ABNORMALLY EXITED --> %d\n", user_commands.pid_array[i], WTERMSIG(status));
+                printf("back ground pid %d is done: exit value %d\n", user_commands.pid_array[i], WTERMSIG(status));
                 sprintf(stat, "exit value %d", WTERMSIG(status));
                 update_status(stat);
                 user_commands.pid_array[i] = 0;
@@ -365,6 +538,8 @@ void kill_kids()
         }
 
     }
+    memset(stat, '\0', strlen(stat));
+    return 0;
 }
 void enter_foreground(int x)
 {
@@ -427,26 +602,20 @@ void command_prompt()
     do
 //    while(delete_count < delete_temp)
     {
-        //---SIGNAL HANDLING
-        // struct sigaction SIGTSTP_action = {0}, ignore_action = {0};
-        // SIGTSTP_action.sa_handler = enter_foreground;
-        // signal(SIGTSTP, enter_foreground);
-        // sigfillset(&SIGTSTP_action.sa_mask);
-        // SIGTSTP_action.sa_flags = 0;
-        // // sigaction(SIGTSTP, &SIGTSTP_action, NULL);
-        // ignore_action.sa_handler = SIG_IGN;
-        // sigaction(SIGINT, &ignore_action, NULL);
 
-        //------------
         //-------------
         delete_count++;
         //-------------
+
+
         kill_kids();
-        usleep(2500);
+
+        // kill_kids();
+        usleep(2900);
 
         // sleep(0.99);
 
-        printf("> "); //the prompt
+        printf(":: "); //the prompt
         int line_check = getline(&string_input, &string_input_len, stdin);
         // getline(&string_input, &string_input_len, stdin);
         if (line_check == -1)
@@ -457,7 +626,9 @@ void command_prompt()
         string_input[strlen(string_input)-1] = '\0';
 //        printf("%s\n", string_input);
         if (*string_input == '\0' || string_input[0] == 35)
-        {continue;}
+        {
+            continue;}
+        if (strcmp(user_commands.command, "exit") == 0) {exit(0); }
         if((strstr(string_input, "$$")) != NULL)
         {
 //            printf("found double dollas\n");
@@ -467,12 +638,12 @@ void command_prompt()
 
 //            printf("string pid worked --> %s\n", string_input);
         }
+        //MAYBE MAYBE MAYBE
+        // if (string_input[strlen(string_input) -1] == 38 && string_input[strlen(string_input) -2] == 32 )
+        // {
+        //     printf("found & at the end\n");
+        // }
 
-        if (string_input[strlen(string_input) -1] == 38 && string_input[strlen(string_input) -2] == 32 )
-        {
-            printf("found & at the end\n");
-        }
-        printf("fill the struct like normal\n");
 
         char *save_pointer;
         char *token = strtok_r(string_input, " ", &save_pointer);
@@ -488,7 +659,7 @@ void command_prompt()
             }
             else if (*token == 60)
             {
-                printf("less than found\n");
+                // printf("less than found\n");
                 token = strtok_r(NULL, " ", &save_pointer);
                 strcpy(user_commands.less, token);
 //                token = strtok_r(NULL, " ", &save_pointer);
@@ -498,7 +669,7 @@ void command_prompt()
             }
             else if (*token == 62)
             {
-                printf("great than found\n");
+                // printf("great than found\n");
                 token = strtok_r(NULL, " ", &save_pointer);
                 strcpy(user_commands.greater, token);
 //                continue;
@@ -507,7 +678,7 @@ void command_prompt()
             }
             else if (*token == 38)
             {
-                printf("& FOUND\n");
+                // printf("& FOUND\n");
 //                token = strtok_r(NULL, " ", &save_pointer);
                 token ++;
                 strcpy(user_commands.amper, "yes");
@@ -530,16 +701,18 @@ void command_prompt()
         } while(1);
         counter = 0; //reset counter to first argument position
         //checking if command is filled out-----------
-        printf("commands--> %s\n", user_commands.command);
-        for (i = 0; i < 4; i++)
-        {
-            printf("args %d --> %s\n", i, user_commands.options_list[i]);
-        }
-        printf("less than --> %s\n", user_commands.less);
-//        if (strcmp(user_commands.less, "") == 0){printf("its empty\n");}
-        printf("greater than --> %s\n", user_commands.greater);
-        printf("ampered up --> %s\n", user_commands.amper);
-        printf("foreground mode --> %d\n", user_commands.foreground);
+        // printf("commands--> %s\n", user_commands.command);
+        // for (i = 0; i < 4; i++)
+        // {
+        //     printf("args %d --> %s\n", i, user_commands.options_list[i]);
+        // }
+//         printf("less than --> %s\n", user_commands.less);
+// //        if (strcmp(user_commands.less, "") == 0){printf("its empty\n");}
+//         printf("greater than --> %s\n", user_commands.greater);
+//         printf("ampered up --> %s\n", user_commands.amper);
+//         printf("foreground mode --> %d\n", user_commands.foreground);
+//         printf("current child pid --> %d\n", user_commands.current);
+//         getpid();
         //---------------------------------------
         //---get pwd
         if ((strcmp(user_commands.command, "")) != 0)
@@ -567,7 +740,7 @@ void command_prompt()
                 {
                     if (getcwd(buff, sizeof buff) == NULL)
                     {
-                        perror("cwd error\n");
+                        perror("cwd error: could not change Dir\n");
                     }
                 }
                 clean_up();
@@ -590,7 +763,7 @@ void command_prompt()
                 }
                 else
                 {
-                    printf("error, bad dir request\n");
+                    printf("Error, bad dir request\n");
                     clean_up();
                     continue;
                 }
@@ -601,6 +774,7 @@ void command_prompt()
 //                printf("YOU NEED TO FILL OUT STATUS STUFF");
                 printf("%s\n", user_commands.status);
                 get_pids();
+                // get_pids();
                 // kill_kids();
                 // get_pids();
                 clean_up();
@@ -609,57 +783,69 @@ void command_prompt()
             else if (strcmp(user_commands.command, "exit") == 0)
             {
                 exit(0);
+                break;
             }
             //----execute block
 
 //            execute_commands(user_commands.command, user_commands.options_list);
-            execute_commands();
+            if ((strcmp(user_commands.amper, "") != 0 && user_commands.foreground == 0))
+            {
+                execute_commands_background();
+            }
+            else
+            {
+
+                execute_commands();
+            }
+            // execute_commands();
             clean_up();
+            // printf("less than --> %s\n", user_commands.less);
+            // printf("greater than --> %s\n", user_commands.greater);
+            // printf("ampered up --> %s\n", user_commands.amper);
+            // printf("current child pid --> %d\n", user_commands.current);
+            // getpid();
             continue;
             //---
 
         }//RUN EVERYTHING ABOVE THIS
 //        execute_commands(user_commands.command, user_commands.options_list);
 
-        //---
-//        printf("less than --> %s\n", user_commands.less);
-//        printf("greater than --> %s\n", user_commands.greater);
-//        printf("ampered up --> %s\n", user_commands.amper);
-//        clean_up();
-
-        //--------confirm cleanup prints
-//        printf("commands--> %s\n", user_commands.command);
-//        for (i = 0; i < 5; i++)
-//        {
-//            printf("args %d --> %s\n", i, user_commands.options_list[i]);
-//        }
-//        printf("less than --> %s\n", user_commands.less);
-//        printf("greater than --> %s\n", user_commands.greater);
-//        printf("ampered up --> %s\n", user_commands.amper);
-        //-------------
-
-
-        //call fflush at end after each print
-    }while (delete_count <= delete_temp);
+    }while (1);
 
 }
+void handler_interrupt(int z)
+{
+
+    if (user_commands.current != 0)
+    {
+        char message[] = "terminated by signal 2\n";
+        update_status(message);
+        write(STDOUT_FILENO, message, 23);
+        fflush(stdout);
+        kill(user_commands.current, SIGINT);
+    }
+}
+
 
 int main(int argc, char **argv)
 
 {
-    struct sigaction SIGTSTP_action = {0}, ignore_action = {0};
+    struct sigaction SIGTSTP_action = {0}, SIGINT_action = {0}, ignore_action = {0}, SIGUSR2_action = {0};
+    // struct sigaction SIGTSTP_action = {0}, ignore_action = {0};
     SIGTSTP_action.sa_handler = enter_foreground;
-
     sigfillset(&SIGTSTP_action.sa_mask);
     // SIGTSTP_action.sa_flags = 0;
-    SIGTSTP_action.sa_flags = SA_RESTART;
+    SIGTSTP_action.sa_flags = SA_RESTART;char _pid[50] = {'\0'};
+    sprintf(_pid, "%d", user_commands.current);
 
-    // signal(SIGTSTP, enter_foreground);
-    // sigaction(SIGTSTP, &SIGTSTP_action, NULL);
-    ignore_action.sa_handler = SIG_IGN;
-    //register the signals
+    SIGINT_action.sa_handler = handler_interrupt;
+    sigfillset(&SIGINT_action.sa_mask);
+    SIGINT_action.sa_flags = SA_RESTART;
+
+
+
     sigaction(SIGTSTP, &SIGTSTP_action, NULL);
-    sigaction(SIGINT, &ignore_action, NULL);
+    sigaction(SIGINT, &SIGINT_action, NULL);
 
     command_prompt();
 
