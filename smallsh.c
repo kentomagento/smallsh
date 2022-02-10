@@ -722,7 +722,7 @@ int main(int argc, char **argv)
 {
     /*
      * Signal handling, for SIGTSTP and SIGINT, used information
-     * from expplorations: signal api
+     * from explorations: signal api
      */
     struct sigaction SIGTSTP_action = {0}, SIGINT_action = {0};
     SIGTSTP_action.sa_handler = enter_foreground;
