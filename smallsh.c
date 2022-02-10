@@ -30,6 +30,7 @@ void update_status(char *string);
 void add_pid(int x);
 // void kill_kids();
 int kill_kids();
+
 void enter_foreground(int x);
 void handler_interrupt(int z);
 void handler_twp(int w);
@@ -123,34 +124,34 @@ void expansion(char *source_string, char *find, char *exchange_with)
 void clean_up()
 {
     int i;
-    fflush(stdout);
-    fflush(stdin);
+
     memset(user_commands.command, '\0', 2048);
     memset(user_commands.less, '\0', 1000);
     memset(user_commands.greater, '\0', 1000);
     memset(user_commands.amper, '\0', 3);
 
 
-    // for (i = 0; i < sizeof (user_commands.options_list)/sizeof (user_commands.options_list[0]); i++)
-    // {
-    //     user_commands.options_list[i] = NULL;
-    //     free(user_commands.options_list[i]);
-    // }
-//UPDATE
-    i = 0;
-    while(1)
+    for (i = 0; i < sizeof (user_commands.options_list)/sizeof (user_commands.options_list[0]); i++)
     {
-        if (user_commands.options_list[i] == NULL)
-        {
-            break;
-        }
-        if(user_commands.options_list[i] != NULL){
-            free(user_commands.options_list[i]);
-            user_commands.options_list[i] = NULL;
 
-        }
-        i++;
+        free(user_commands.options_list[i]);
+        user_commands.options_list[i] = NULL;
     }
+//UPDATE
+    // i = 0;
+    // while(1)
+    // {
+    //     if (user_commands.options_list[i] == NULL)
+    //     {
+    //         break;
+    //     }
+    //     if(user_commands.options_list[i] != NULL){
+    //         free(user_commands.options_list[i]);
+    //         user_commands.options_list[i] = NULL;
+
+    //     }
+    //     i++;
+    // }
 }
 /*
 ------citation for execute_commands
@@ -218,6 +219,8 @@ int execute_commands()
         case -1:
         {
             perror("fork failed!");
+            fflush(stdout);
+            clean_up();
             break;
             // exit(1);
         }
@@ -236,6 +239,8 @@ int execute_commands()
                 {
 //                perror("target open()");
                     printf("ERROR. cannot open");
+                    fflush(stdout);
+                    clean_up();
                     exit(1);
                 }
                 dup2(targetFD, 1);
@@ -251,6 +256,8 @@ int execute_commands()
                 {
 //                perror("cannot open for input");
                     printf("error cannot open %s for input\n", user_commands.less);
+                    fflush(stdout);
+                    clean_up();
                     exit(1);
                 }
                 dup2(source_file, 0);
@@ -261,7 +268,8 @@ int execute_commands()
             // perror("Foreground: exec failed\n");
 
             perror(user_commands.command);
-            // exit(2);
+            clean_up();
+            exit(2);
             break;
             // return 2;
         }
@@ -288,7 +296,11 @@ int execute_commands()
                 // printf ("current FOREGROUND PID --> %d\n", user_commands.current);
                 // printf("FOREGROUND exit status child--> %d\n", WIFEXITED(childExitStatus));
                 // printf("FOREGROUND child %d exited normal with %d\n", spawnPid, WEXITSTATUS(childExitStatus));
-                update_status("exit status 0");
+                char normal1[70] = {'\0'};
+                sprintf(normal1, "exit status %d", WEXITSTATUS(childExitStatus));
+                // update_status("exit status 0");
+                update_status(normal1);
+                clean_up();
                 fflush(stdout);
                 break;
 
@@ -300,16 +312,18 @@ int execute_commands()
                 char abnormal[70] = {'\0'};
                 sprintf(abnormal, "terminated by signal %d", WTERMSIG(childExitStatus));
                 update_status(abnormal);
+                clean_up();
                 fflush(stdout);
                 break;
 
             }
-            waitpid(spawnPid, NULL, WNOHANG);
 
+            user_commands.pid_array[0] = 0;
+            clean_up();
             exit(0);
 
         }
-            exit(0);
+            // exit(0);
     }
     // exit();
     return 0;
@@ -369,6 +383,8 @@ int execute_commands_background()
         case -1:
         {
             perror("fork failed!");
+            fflush(stdout);
+            clean_up();
             break;
             // exit(1);
         }
@@ -379,17 +395,20 @@ int execute_commands_background()
             if (targetFD == -1)
             {
                 printf("could not open\n");
+                fflush(stdout);
             }
             int source_file = open("/dev/null", O_RDWR);
             if (source_file == -1)
             {
                 printf("could not open\n");
+                fflush(stdout);
             }
 
             dup2(source_file, 0);
             dup2(targetFD, 1);
             // dup2(open("/dev/null/", O_PATH),0);
             printf("child (%d) \n", getpid());
+            fflush(stdout);
             // usleep(5);
             // write(0, "\n", 1);
 //        sleep(10);
@@ -401,6 +420,8 @@ int execute_commands_background()
                 {
 //                perror("target open()");
                     printf("ERROR. cannot open");
+                    clean_up();
+                    fflush(stdout);
                     exit(1);
                 }
                 dup2(targetFD, 1);
@@ -418,6 +439,8 @@ int execute_commands_background()
                 {
 //                perror("cannot open for input");
                     printf("error cannot open %s for input\n", user_commands.less);
+                    fflush(stdout);
+                    clean_up();
                     exit(1);
                 }
                 dup2(source_file, 0);
@@ -441,7 +464,9 @@ int execute_commands_background()
             //---------------------------
             execvp(user_commands.command, args);
             perror("child: exec failed\n");
-            // exit(2);
+            clean_up();
+            fflush(stdout);
+            exit(2);
             break;
             // return 2;
         }
@@ -484,6 +509,7 @@ int execute_commands_background()
             // exit(0);
 
         }
+            // exit(0);
     }
 
     return 0;
@@ -504,15 +530,7 @@ int kill_kids()
     //  pid_t chek_pid = wait(&status);
     // printf("%d\n", user_commands.current);
     get_pids();
-    if (user_commands.pid_array[0] == 1)
-    {
-        user_commands.pid_array[0] = 0;
 
-        return 0;
-    }
-    if(user_commands.current == user_commands.pid_array[i]){
-        return 0;
-    }
 
     for (i = 1; i < 512; i++)
     {
@@ -530,11 +548,12 @@ int kill_kids()
             }
             if (WIFEXITED(status) != 0)
             {
-//                printf("extra\n");
+                // printf("extra\n");
                 printf("back ground pid %d is done: exit value %d\n", user_commands.pid_array[i], WIFSIGNALED(status));
-
+                fflush(stdout);
                 sprintf(stat, "exit value %d", WIFSIGNALED(status));
                 update_status(stat);
+                clean_up();
                 user_commands.pid_array[i] = 0;
             }
             else
@@ -543,14 +562,16 @@ int kill_kids()
                 // printf("pid --> %d, ABNORMALLY EXITED --> %d\n", user_commands.pid_array[i], WTERMSIG(status));
                 printf("back ground pid %d is done: terminated by signal %d\n", user_commands.pid_array[i], WTERMSIG(status));
                 sprintf(stat, "exit value %d", WTERMSIG(status));
+                fflush(stdout);
                 update_status(stat);
+                clean_up();
                 user_commands.pid_array[i] = 0;
             }
 
         }
 
     }
-    memset(stat, '\0', strlen(stat));
+    // memset(stat, '\0', strlen(stat));
     return 0;
 }
 void enter_foreground(int x)
@@ -561,6 +582,7 @@ void enter_foreground(int x)
         write(STDOUT_FILENO, message, 48);
         fflush(stdout);
         user_commands.foreground = 1;
+        clean_up();
     }
     else if (user_commands.foreground == 1)
     {
@@ -568,6 +590,7 @@ void enter_foreground(int x)
         write(STDOUT_FILENO, message, 28);
         fflush(stdout);
         user_commands.foreground = 0;
+        clean_up();
     }
 
 }
@@ -605,6 +628,7 @@ void command_prompt()
     if (getcwd(buff, sizeof buff) == NULL)
     {
         perror("cwd error\n");
+        fflush(stdout);
     }
     //-------
 
@@ -625,11 +649,12 @@ void command_prompt()
         kill_kids();
 
         // kill_kids();
-        usleep(2900);
+        // usleep(2900);
 
         // sleep(0.99);
 
         printf(":: "); //the prompt
+        fflush(stdout);
         int line_check = getline(&string_input, &string_input_len, stdin);
         // getline(&string_input, &string_input_len, stdin);
         if (line_check == -1)
@@ -641,6 +666,7 @@ void command_prompt()
 //        printf("%s\n", string_input);
         if (*string_input == '\0' || string_input[0] == 35)
         {
+            clean_up();
             continue;}
         if (strcmp(user_commands.command, "exit") == 0) {exit(0); }
         if((strstr(string_input, "$$")) != NULL)
@@ -742,6 +768,7 @@ void command_prompt()
                 //---moves up to declarations; char buff[FILENAME_MAX];
 
                 printf("%s\n", buff);
+                fflush(stdout);
 //                    system("ls -l");
                 clean_up();
                 continue;
@@ -760,6 +787,7 @@ void command_prompt()
                     if (getcwd(buff, sizeof buff) == NULL)
                     {
                         perror("cwd error: could not change Dir\n");
+                        fflush(stdout);
                     }
                 }
                 clean_up();
@@ -773,9 +801,11 @@ void command_prompt()
                 if (change_result == 0)
                 {
                     printf("dir changed\n");
+                    fflush(stdout);
                     if (getcwd(buff, sizeof buff) == NULL)
                     {
                         perror("cwd error\n");
+                        fflush(stdout);
                     }
                     clean_up();
                     continue;
@@ -783,6 +813,7 @@ void command_prompt()
                 else
                 {
                     printf("Error, bad dir request\n");
+                    fflush(stdout);
                     clean_up();
                     continue;
                 }
@@ -792,6 +823,7 @@ void command_prompt()
             {
 //                printf("YOU NEED TO FILL OUT STATUS STUFF");
                 printf("%s\n", user_commands.status);
+
                 fflush(stdout);
                 // get_pids();
                 // get_pids();
@@ -841,10 +873,12 @@ void handler_interrupt(int z)
     if (user_commands.pid_array[0] == 1)
     {
         char message[] = "terminated by signal 2\n";
+        fflush(stdout);
         // update_status(message);
         write(STDOUT_FILENO, message, 23);
         fflush(stdout);
         kill(user_commands.current, SIGINT);
+        clean_up();
     }
 }
 
