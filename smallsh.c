@@ -333,64 +333,41 @@ int execute_commands()
 int execute_commands_background()
 {
     char *args[512] = {NULL};
-    int num_elements;
     int index_args;
     int index_arr_options;
-    int i;
     index_arr_options = 0;
-    num_elements = 0;
     index_args = 1;
-//    args[0] = first_command;
-    pid_t first_pid;
-    pid_t second_pid;
-    int state;
+
     args[0] = user_commands.command;
     while(1)
     {
-//        if (arr_options[index_arr_options] == NULL)
         if(user_commands.options_list[index_arr_options] == NULL)
         {
             break;
         }
-//        args[index_args] = arr_options[index_arr_options];
         args[index_args] = user_commands.options_list[index_arr_options];
         index_arr_options++;
         index_args++;
     }
-    //---------handle redirections
-//    if ((strcmp(user_commands.greater, "") != 0))//not empty
-//    {
-//        int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
-//        if (targetFD == -1)
-//        {
-//            perror("target open()");
-//            exit(1);
-//        }
-//        dup2(targetFD, 1);
-//        fcntl(targetFD, F_SETFD, FD_CLOEXEC);
-//    }
-    //-----------
 
     pid_t spawnPid;
     int childExitStatus;
-
     spawnPid = fork();
-    // int pid = (waitpid(-1, NULL, WNOHANG));
-    // printf("pid result --> %d; the pide is --> %d\n", pid, spawnPid);
     switch(spawnPid)
     {
-        // if (spawnPid == -1)
         case -1:
         {
             perror("fork failed!");
             fflush(stdout);
             clean_up();
             break;
-            // exit(1);
         }
-            // else if (spawnPid == 0)
         case 0:
         {
+            /*
+             * For background processes where no redirection was
+             * found, redirects will go to /dev/null
+             */
             int targetFD = open("/dev/null", O_RDWR);
             if (targetFD == -1)
             {
@@ -406,19 +383,18 @@ int execute_commands_background()
 
             dup2(source_file, 0);
             dup2(targetFD, 1);
-            // dup2(open("/dev/null/", O_PATH),0);
             printf("child (%d) \n", getpid());
             fflush(stdout);
-            // usleep(5);
-            // write(0, "\n", 1);
-//        sleep(10);
-            if ((strcmp(user_commands.greater, "") != 0))//not empty
+
+            /*
+            * Redirect input depending on if a '>' was found
+            * in user input and parsed out
+            */
+            if ((strcmp(user_commands.greater, "") != 0))
             {
-                // int targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
                 targetFD = open(user_commands.greater, O_WRONLY | O_CREAT | O_TRUNC, 0777);
                 if (targetFD == -1)
                 {
-//                perror("target open()");
                     printf("ERROR. cannot open");
                     clean_up();
                     fflush(stdout);
@@ -431,13 +407,15 @@ int execute_commands_background()
             }
             else
 
-            if ((strcmp(user_commands.less, "") != 0))//not empty
+            /*
+             * Redirect input depending on if a '<' was found
+             * in user input and parsed out
+             */
+            if ((strcmp(user_commands.less, "") != 0))
             {
-                // int source_file = open(user_commands.less, O_RDONLY);
                 source_file = open(user_commands.less, O_RDONLY);
                 if (source_file == -1)
                 {
-//                perror("cannot open for input");
                     printf("error cannot open %s for input\n", user_commands.less);
                     fflush(stdout);
                     clean_up();
@@ -447,88 +425,49 @@ int execute_commands_background()
                 fcntl(source_file, FD_CLOEXEC);
             }
 
-//EXECUTION
-            //  DIR *currDir = opendir("/dev/null");
-            // printf("changing stdout\n");
-            // fflush(stdout);
-            // int dev_null_out = open("/dev/null", O_RDONLY);
-            // // open("/dev/null", O_RDONLY);
-            // dup2(dev_null_out, 0);
-            // fcntl(dev_null_out, F_SETFD, FD_CLOEXEC);
-            //------------------------
+
+            //-----Passing ignore environment to forked child----------
             struct sigaction SIGINT_action = {0}, ignore_action = {0};
             SIGINT_action.sa_handler = SIG_IGN;
             ignore_action.sa_handler = SIG_IGN;
             sigaction(SIGINT, &ignore_action, NULL);
             sigaction(SIGINT, &SIGINT_action, NULL);
-            //---------------------------
+            //--------------------------------------------------------
+
             execvp(user_commands.command, args);
             perror("child: exec failed\n");
             clean_up();
             fflush(stdout);
             exit(2);
-            break;
-            // return 2;
         }
-            // else
         default:
         {
-            // printf("childs pid = %d\n", spawnPid);
-            // write(0, "\n", 1);
-            //-----adding pids to array
-
-            //--------------
             fflush(stdout);
-//        spawnPid = waitpid(spawnPid, &childExitStatus, WNOHANG);
-
             user_commands.current = spawnPid;
-            // printf("BACKGROUND\n");
+
             printf("background pid is %d\n", spawnPid);
             add_pid(spawnPid);
             fflush(stdout);
 
             spawnPid = (waitpid(spawnPid, &childExitStatus, WNOHANG));
-
-            // if (WIFEXITED(childExitStatus))
-            // {
-            //     // printf ("current FOREGROUND PID --> %d\n", user_commands.current);
-            //     printf("BACKGROUND exit status child--> %d\n", WIFEXITED(childExitStatus));
-            //     printf("BACKGROUND child %d exited normal\n", spawnPid, WEXITSTATUS(childExitStatus));
-            //     fflush(stdout);
-            //     break;
-
-            // }
-            // else
-            // {
-            //     printf("BACKGROUND exit status child--> %d\n", WIFEXITED(childExitStatus));
-            //     printf("BACKGROUND child %d ABNORMALLY exited due to signal %d\n", spawnPid, WTERMSIG(childExitStatus));
-            //     fflush(stdout);
-            //     break;
-
-            // }
-            // exit(0);
-
         }
-            // exit(0);
     }
 
     return 0;
 
 }
 
-
-//BOOKMARK
-// void kill_kids()
+/*
+ * Function that will be called at the end of teh command prompt function and at
+ * the beginning of the function to reap finished child processes and update
+ * the status
+ */
 int kill_kids()
 {
     int i;
-    //  i = 0;
     int result;
-    int run;
     int status;
     char stat[1000] = {0};
-    //  pid_t chek_pid = wait(&status);
-    // printf("%d\n", user_commands.current);
     get_pids();
 
 
@@ -539,16 +478,18 @@ int kill_kids()
             continue;
             // break;
         }
-
-        result = waitpid(user_commands.pid_array[i], &status, WNOHANG); //checks if any completed and return 0 if they're still running
+        //---Using waitpid to reap finished children
+        result = waitpid(user_commands.pid_array[i], &status, WNOHANG);
         if (result != 0)
         {
             if(user_commands.current == user_commands.pid_array[i]){
                 continue;
             }
+            /*
+             * Will check how the fork exited and update the status
+             */
             if (WIFEXITED(status) != 0)
             {
-                // printf("extra\n");
                 printf("back ground pid %d is done: exit value %d\n", user_commands.pid_array[i], WIFSIGNALED(status));
                 fflush(stdout);
                 sprintf(stat, "exit value %d", WIFSIGNALED(status));
@@ -559,7 +500,6 @@ int kill_kids()
             else
             {
 
-                // printf("pid --> %d, ABNORMALLY EXITED --> %d\n", user_commands.pid_array[i], WTERMSIG(status));
                 printf("back ground pid %d is done: terminated by signal %d\n", user_commands.pid_array[i], WTERMSIG(status));
                 sprintf(stat, "exit value %d", WTERMSIG(status));
                 fflush(stdout);
@@ -571,9 +511,14 @@ int kill_kids()
         }
 
     }
-    // memset(stat, '\0', strlen(stat));
     return 0;
 }
+/*
+ * Signal handling function for control Z, it will start foreground mode
+ * sending the signal again will exit foreground mode, will switch foreground
+ * member/element of the struct to indicate whether it is intialized for the
+ * rest of the program execution
+ */
 void enter_foreground(int x)
 {
     if (user_commands.foreground == 0)
@@ -592,27 +537,26 @@ void enter_foreground(int x)
         user_commands.foreground = 0;
         clean_up();
     }
-
 }
 
-
-
+/*
+ * The main command prompt, called from main, will run indefinitely
+ * until exiting the program
+ */
 void command_prompt()
 {
-    int delete_temp = 100;
-    int delete_count = 0;
-    int condition;
-    condition = 0;
-    int i;
     int compare;
     int counter;
     counter = 0;
     compare = 0;
-    //-----getline
+    //-----getline---
     char *string_input = NULL;
     size_t string_input_len = 0;
-//UPDATE
-    //------------fill struct
+
+    /*
+     * Filling the struct with intiazl members to clear out
+     * memory
+     */
     memset(user_commands.command, '\0', 2048);
     memset(user_commands.less, '\0', 1000);
     memset(user_commands.greater, '\0', 1000);
@@ -620,10 +564,12 @@ void command_prompt()
     memset(user_commands.pid_array, 0, sizeof(user_commands.pid_array));
     memset(user_commands.status, '\0', sizeof(user_commands.status));
     strcpy(user_commands.status, "exit value 0");
-    user_commands.foreground = 0; //zero/false foreground mode
+    user_commands.foreground = 0; //zero/false foreground mode signal
     //----get pid change to string
     char string_pid[8] = {'\0'};
-    //---directory handling
+    /*
+     * Directory handling for the built in Cd command
+     */
     char buff[FILENAME_MAX];
     if (getcwd(buff, sizeof buff) == NULL)
     {
