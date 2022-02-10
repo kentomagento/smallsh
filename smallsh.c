@@ -26,7 +26,7 @@ int execute_commands();
 void update_status(char *string);
 void add_pid(int x);
 int kill_kids();
-void enter_foreground(int x);
+void enter_foreground();
 void handler_interrupt(int z);
 int execute_commands_background();
 //-------------------------------
@@ -471,7 +471,7 @@ int kill_kids()
  * member/element of the struct to indicate whether it is intialized for the
  * rest of the program execution
  */
-void enter_foreground(int x)
+void enter_foreground()
 {
     if (user_commands.foreground == 0)
     {
