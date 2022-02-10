@@ -630,40 +630,21 @@ void command_prompt()
         perror("cwd error\n");
         fflush(stdout);
     }
-    //-------
 
-    //-----temp input
-//    string_input = "ls -la";
-    //-----
     do
-//    while(delete_count < delete_temp)
+
     {
-
-
-
-        //-------------
-        delete_count++;
-        //-------------
-
-
         kill_kids();
 
-        // kill_kids();
-        // usleep(2900);
-
-        // sleep(0.99);
-
-        printf(":: "); //the prompt
+        printf(": "); //the prompt
         fflush(stdout);
         int line_check = getline(&string_input, &string_input_len, stdin);
-        // getline(&string_input, &string_input_len, stdin);
         if (line_check == -1)
         {
             clearerr(stdin);
             break;
         }
         string_input[strlen(string_input)-1] = '\0';
-//        printf("%s\n", string_input);
         if (*string_input == '\0' || string_input[0] == 35)
         {
             clean_up();
@@ -671,24 +652,24 @@ void command_prompt()
         if (strcmp(user_commands.command, "exit") == 0) {exit(0); }
         if((strstr(string_input, "$$")) != NULL)
         {
-//            printf("found double dollas\n");
             pid_t pid = getpid();
             sprintf(string_pid, "%d", pid);
             expansion(string_input, "$$", string_pid);
-
-//            printf("string pid worked --> %s\n", string_input);
         }
-        //MAYBE MAYBE MAYBE
-        // if (string_input[strlen(string_input) -1] == 38 && string_input[strlen(string_input) -2] == 32 )
-        // {
-        //     printf("found & at the end\n");
-        // }
 
-
+        /*
+         * Separate the first word in the user input then moving to the rest
+         * of the given line
+         */
         char *save_pointer;
         char *token = strtok_r(string_input, " ", &save_pointer);
         strcpy(user_commands.command, token);
 
+        /*
+         * Loop will tokenize the given input and will redirect which
+         * arguments are put in the regular argument array or in the
+         * members for '<' '>' and '&'
+         */
         do
         {
             token = strtok_r(NULL, " ", &save_pointer);
@@ -699,22 +680,16 @@ void command_prompt()
             }
             else if (*token == 60)
             {
-                // printf("less than found\n");
                 token = strtok_r(NULL, " ", &save_pointer);
                 strcpy(user_commands.less, token);
-//                token = strtok_r(NULL, " ", &save_pointer);
-//                continue;
                 compare = 1;
 
             }
             else if (*token == 62)
             {
-                // printf("great than found\n");
                 token = strtok_r(NULL, " ", &save_pointer);
                 strcpy(user_commands.greater, token);
-//                continue;
                 compare = 1;
-
             }
             else if (*token == 38)
             {
@@ -722,65 +697,42 @@ void command_prompt()
                 {
                     break;
                 }
-                //  printf("& FOUND\n");
-//                token = strtok_r(NULL, " ", &save_pointer);
                 token ++;
                 strcpy(user_commands.amper, "yes");
                 compare = 1;
             }
-//            if (token == 0)
-//            {
-//                //break;
-//                continue;
-//            }
+
             user_commands.options_list[counter] = malloc((strlen(token) +1) * sizeof (char));
             if (compare != 0) {
                 user_commands.options_list[counter] = NULL;
             } else {
                 strcpy(user_commands.options_list[counter], token);
             }
-//            strcpy(user_commands.options_list[counter], token);
             compare = 0;
             counter++;
         } while(1);
         counter = 0; //reset counter to first argument position
-        //checking if command is filled out-----------
-        //  printf("commands--> %s\n", user_commands.command);
-        //  for (i = 0; i < 4; i++)
-        //  {
-        //      printf("args %d --> %s\n", i, user_commands.options_list[i]);
-        //  }
-        //  printf("less than --> %s\n", user_commands.less);
-        //        if (strcmp(user_commands.less, "") == 0){printf("its empty\n");}
-        //  printf("greater than --> %s\n", user_commands.greater);
-        //  printf("ampered up --> %s\n", user_commands.amper);
-//         printf("foreground mode --> %d\n", user_commands.foreground);
-//         printf("current child pid --> %d\n", user_commands.current);
-//         getpid();
-        //---------------------------------------
-        //---get pwd
 
+        /*
+         * Check the member of the struct holding the initial command
+         * if it is not empty then go through built in commands for
+         * execution
+         */
         if ((strcmp(user_commands.command, "")) != 0)
         {
+            //Get the present working directory
             if (strcmp(user_commands.command, "pwd") == 0) //strcmp return zero if equal
             {
-                //printf("asking for directory\n");
-                //---moves up to declarations; char buff[FILENAME_MAX];
-
                 printf("%s\n", buff);
                 fflush(stdout);
-//                    system("ls -l");
                 clean_up();
                 continue;
 
             }
+            //Change directory to HOME
             else if (strcmp(user_commands.command, "cd") == 0 && user_commands.options_list[0] == NULL)
             {
 
-//                printf("%s\n", buff);
-//                system("ls -l");
-
-//                printf("getenv--> %s\n", getenv("HOME"));
                 chdir(getenv("HOME"));
                 if (chdir(getenv("HOME")) == 0)
                 {
@@ -794,6 +746,7 @@ void command_prompt()
                 continue;
 
             }
+            //Changing the directory to given argument
             else if (strcmp(user_commands.command, "cd") == 0)
             {
                 int change_result;
@@ -817,64 +770,48 @@ void command_prompt()
                     clean_up();
                     continue;
                 }
-//                system("ls -l");
             }
+            //Check status of previous execution
             else if (strcmp(user_commands.command, "status") == 0)
             {
-//                printf("YOU NEED TO FILL OUT STATUS STUFF");
                 printf("%s\n", user_commands.status);
-
                 fflush(stdout);
-                // get_pids();
-                // get_pids();
-                // kill_kids();
-                // get_pids();
                 clean_up();
                 continue;
             }
+            //Exit the program
             else if (strcmp(user_commands.command, "exit") == 0)
             {
                 exit(0);
-                break;
             }
-            //----execute block
-
-//            execute_commands(user_commands.command, user_commands.options_list);
+            /*
+             * Logic to call foreground function or background function
+             */
             if ((strcmp(user_commands.amper, "") != 0 && user_commands.foreground == 0))
             {
                 execute_commands_background();
             }
             else
             {
-
                 execute_commands();
             }
-            // execute_commands();
             kill_kids();
             clean_up();
-            // printf("less than --> %s\n", user_commands.less);
-            // printf("greater than --> %s\n", user_commands.greater);
-            // printf("ampered up --> %s\n", user_commands.amper);
-            // printf("current child pid --> %d\n", user_commands.current);
-            // getpid();
             continue;
-            //---
-
-        }//RUN EVERYTHING ABOVE THIS
-//        execute_commands(user_commands.command, user_commands.options_list);
-
+        }
     }while (1);
 
 }
+/*
+ * Handler interrupt function to be assigned into the SIGTSTP interrupt
+ */
 void handler_interrupt(int z)
 {
 
-    // if (user_commands.current != 0)
     if (user_commands.pid_array[0] == 1)
     {
         char message[] = "terminated by signal 2\n";
         fflush(stdout);
-        // update_status(message);
         write(STDOUT_FILENO, message, 23);
         fflush(stdout);
         kill(user_commands.current, SIGINT);
@@ -886,11 +823,13 @@ void handler_interrupt(int z)
 int main(int argc, char **argv)
 
 {
-    struct sigaction SIGTSTP_action = {0}, SIGINT_action = {0}, ignore_action = {0}, SIGUSR2_action = {0};
-    // struct sigaction SIGTSTP_action = {0}, ignore_action = {0};
+    /*
+     * Signal handling, for SIGTSTP and SIGINT, used information
+     * from expplorations: signal api
+     */
+    struct sigaction SIGTSTP_action = {0}, SIGINT_action = {0};
     SIGTSTP_action.sa_handler = enter_foreground;
     sigfillset(&SIGTSTP_action.sa_mask);
-    // SIGTSTP_action.sa_flags = 0;
     SIGTSTP_action.sa_flags = SA_RESTART;char _pid[50] = {'\0'};
     sprintf(_pid, "%d", user_commands.current);
 
@@ -898,17 +837,12 @@ int main(int argc, char **argv)
     sigfillset(&SIGINT_action.sa_mask);
     SIGINT_action.sa_flags = SA_RESTART;
 
-    //---------------
-    // ignore_action.sa_handler = SIG_IGN;
-
-    // sigaction(SIGTSTP, &ignore_action, NULL);
-    //---------------
-
-
-
     sigaction(SIGTSTP, &SIGTSTP_action, NULL);
     sigaction(SIGINT, &SIGINT_action, NULL);
 
+    /*
+     * Enter the main logic for command prompt
+     */
     command_prompt();
 
     return 0;
