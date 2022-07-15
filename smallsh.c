@@ -1,9 +1,6 @@
 //
 // Created by kent480 on 1/25/22.
-// 344 Operating Systems
-// section 400
-// Assignment3: smallsh
-//
+
 
 #include <stdio.h>
 #include <stdlib.h>
